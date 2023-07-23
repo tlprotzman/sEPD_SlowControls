@@ -27,7 +27,7 @@ def receive(conn):
     return data
 
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.DEBUG)
 
 if len(sys.argv) == 1:
     sys.exit(1)
@@ -55,6 +55,11 @@ if sys.argv[1] == "v":
         sock.connect((HOST, PORT))
         sock.sendall(bytes("voltage {}\n".format(card), "utf-8"))
         print(receive(sock))
+        time.sleep(1)
+        # sock.connect((HOST, PORT))
+        sock.sendall(bytes("voltage {}\n".format(card), "utf-8"))
+        print(receive(sock))
+    # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 
 if sys.argv[1] == "i":
     card = 0
@@ -67,6 +72,7 @@ if sys.argv[1] == "i":
         sock.connect((HOST, PORT))
         sock.sendall(bytes("current {}\n".format(card), "utf-8"))
         print(receive(sock))
+        time.sleep(2)
 
 if sys.argv[1] == "s":
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

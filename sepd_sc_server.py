@@ -20,7 +20,7 @@ import sys
 import struct
 
 
-class sepdServer(socketserver.TCPServer):
+class sepdServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     def __init__(self, address, handler):
         socketserver.TCPServer.__init__(self, address, handler)
         self.testvalue = 123
@@ -83,51 +83,54 @@ class sepdServer(socketserver.TCPServer):
 
 class sepdServerHandler(socketserver.StreamRequestHandler):
     def handle(self):
-        try:
-            data = [d.decode() for d in self.rfile.readline().strip().split()]
-            logging.info("received message {}".format(data))
-            package = None
-            if data[0].lower() in ("h", "?", "help"):
-                package  = "Welcome to the sEPD control server\n"
-                package += "If something is broken, check the wiki (https://wiki.sphenix.bnl.gov/index.php/SPHENIX_Event_Plane_Detector) "
-                package += "and then contact Tristan (570-647-9724) if you can't figure it out\n\n"
-                package += "Usage:\n"
-                package += "\ttemperature x\t\t Reads the temperatures of interface board x\n"
-                package += "\tvoltage x\t\t Reads the voltages of interface board x\n"
-                package += "\tcurrent x\t\t Reads the SiPM currents of interface board x\n"
+        for data in self.rfile:
+            try:
+                # data = self.rfile.readline()
+                logging.debug("received {} bytes".format(len(data)))
+                data = [d.decode() for d in data.strip().split()]
+                logging.info("received message {}".format(data))
+                package = None
+                if data[0].lower() in ("h", "?", "help"):
+                    package  = "Welcome to the sEPD control server\n"
+                    package += "If something is broken, check the wiki (https://wiki.sphenix.bnl.gov/index.php/SPHENIX_Event_Plane_Detector) "
+                    package += "and then contact Tristan (570-647-9724) if you can't figure it out\n\n"
+                    package += "Usage:\n"
+                    package += "\ttemperature x\t\t Reads the temperatures of interface board x\n"
+                    package += "\tvoltage x\t\t Reads the voltages of interface board x\n"
+                    package += "\tcurrent x\t\t Reads the SiPM currents of interface board x\n"
 
-            if data[0] == "temperature":
-                try:
-                    card = int(data[1])
-                    package = self.server.query_controller_temperature(card)
-                except Exception as e:
-                    package = "Specify interface board number: {}".format(e)
-                    
-            elif data[0] == "voltage":
-                try:
-                    card = int(data[1])
-                    package = self.server.query_controller_voltages(card)
-                except Exception as e:
-                    package = "Specify interface board number: {}".format(e)
+                if data[0] == "temperature":
+                    try:
+                        card = int(data[1])
+                        package = self.server.query_controller_temperature(card)
+                    except Exception as e:
+                        package = "Specify interface board number: {}".format(e)
+                        
+                elif data[0] == "voltage":
+                    try:
+                        card = int(data[1])
+                        package = self.server.query_controller_voltages(card)
+                    except Exception as e:
+                        package = "Specify interface board number: {}".format(e)
 
-            elif data[0] == "current":
-                try:
-                    card = int(data[1])
-                    package = self.server.query_sipm_current(card)
-                except Exception as e:
-                    package = "Specify interface board number: {}".format(e)
+                elif data[0] == "current":
+                    try:
+                        card = int(data[1])
+                        package = self.server.query_sipm_current(card)
+                    except Exception as e:
+                        package = "Specify interface board number: {}".format(e)
 
-            elif data[0] == "shutdown":
-                self.server.shutdown_server()
+                elif data[0] == "shutdown":
+                    self.server.shutdown()
 
-            # print(data)
-            logging.info("Package to reply with is {}".format(package))
-            package = pickle.dumps(package)
-            logging.info("Package is {} bytes".format(len(package)))
-            self.wfile.write(struct.pack(">I", len(package)))
-            self.wfile.write(package)
-        except Exception as e:
-            logging.warning("Handler exception: {}".format(e))
+                # print(data)
+                logging.info("Package to reply with is {}".format(package))
+                package = pickle.dumps(package)
+                logging.info("Package is {} bytes".format(len(package)))
+                self.wfile.write(struct.pack(">I", len(package)))
+                self.wfile.write(package)
+            except Exception as e:
+                logging.warning("Handler exception: {}".format(e))
 
         
 
@@ -135,7 +138,7 @@ class sepdServerHandler(socketserver.StreamRequestHandler):
 
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 with sepdServer((HOST, PORT), sepdServerHandler) as server:
     # Activate the server; this will keep running until you
     # interrupt the program with Ctrl-C
