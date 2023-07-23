@@ -13,8 +13,12 @@ import time
 
 
 class sepdMonitor:
-    def __init__(self):
-        self.configs = self.load_configs()
+    def __init__(self, config_file):
+        if config_file is None:
+            self.configs = self.load_configs()
+        else:
+            self.configs = self.load_configs(config_file)
+
         logging.basicConfig(level=self.configs["logging_level"])
         pass
 
@@ -103,14 +107,19 @@ class sepdMonitor:
 
     
 
+def main(argv):
+    config_file = None
+    if len(argv) > 1:
+        config_file = argv[1]
+    with sepdMonitor(config_file) as monitor:
+        # monitor.make_config_file()
+        # sys.exit()
+        logging.debug("opening monitor")
+        for i in range(5):
+            temperatures = monitor.get_temperatures()
+            voltages = monitor.get_voltages()
+            currents = monitor.get_currents()
+            time.sleep(monitor.configs["poll_rate"])
 
-with sepdMonitor() as monitor:
-    # monitor.make_config_file()
-    # sys.exit()
-    logging.debug("opening monitor")
-    for i in range(5):
-        temperatures = monitor.get_temperatures()
-        voltages = monitor.get_voltages()
-        currents = monitor.get_currents()
-        time.sleep(monitor.configs["poll_rate"])
-
+if __name__ == "__main__":
+    main(sys.argv)

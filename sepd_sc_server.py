@@ -14,8 +14,11 @@ import telnetlib
 
 
 class sepdServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    def __init__(self):
-        self.configs = self.load_configs()
+    def __init__(self, file):
+        if file is None:
+            self.configs = self.load_configs()
+        else:
+            self.configs = self.load_configs(file)
         logging.basicConfig(level=self.configs["logging_level"])
         socketserver.TCPServer.__init__(self, (self.configs["host"], self.configs["port"]), sepdServerHandler)
 
@@ -144,11 +147,14 @@ class sepdServerHandler(socketserver.StreamRequestHandler):
 
         
 
-def main():
-    with sepdServer() as server:
+def main(argv):
+    config_file = None
+    if len(argv) > 1:
+        config_file = argv[1]
+    with sepdServer(config_file) as server:
         # Activate the server; this will keep running until you
         # interrupt the program with Ctrl-C
         server.serve_forever()
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
