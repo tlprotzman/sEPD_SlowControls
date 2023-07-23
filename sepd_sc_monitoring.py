@@ -3,19 +3,20 @@ Tristan Protzman
 Jul 23 2023
 """
 
-import socket
-import sys
-import struct
-import pickle
+import json
 import logging
+import pickle
+import socket
+import struct
+import sys
 import time
 
-HOST, PORT = "localhost", 12345
-interface_boards = 1
 
 class sepdMonitor:
-    # def __init__(self):
-    #     pass
+    def __init__(self):
+        self.configs = self.load_configs()
+        logging.basicConfig(level=self.configs["logging_level"])
+        pass
 
     def __enter__(self):
         self.connect()
@@ -24,9 +25,23 @@ class sepdMonitor:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def load_configs(self, file="monitoring_config.json"):
+        with open(file, "r") as f:
+            return json.load(f)
+
+    def make_config_file(self, file="monitoring_config.json"):
+        configs = {}
+        configs["host"] = "localhost"
+        configs["port"] = 12345
+        configs["logging_level"] = logging.DEBUG
+        configs["poll_rate"] = 1     # second
+        configs["interface_boards"] = 1
+        with open(file, "w") as f:
+            json.dump(configs, f, indent=4)
+
     def connect(self):
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.connection.connect((HOST, PORT))
+        self.connection.connect((self.configs["host"], self.configs["port"]))
 
     def close(self):
         self.connection.close()
@@ -54,7 +69,7 @@ class sepdMonitor:
     def get_temperatures(self):
         logging.info("Getting temperature")
         temperatures = {}
-        for i in range(interface_boards):
+        for i in range(self.configs["interface_boards"]):
             package = "temperature {}".format(i)
             self.send(package)
             temperatures[i] = self.receive()
@@ -66,7 +81,7 @@ class sepdMonitor:
     def get_voltages(self):
         logging.info("Getting voltage")
         voltages = {}
-        for i in range(interface_boards):
+        for i in range(self.configs["interface_boards"]):
             package = "voltage {}".format(i)
             self.send(package)
             voltages[i] = self.receive()
@@ -77,7 +92,7 @@ class sepdMonitor:
     def get_currents(self):
         logging.info("Getting current")
         currents = {}
-        for i in range(interface_boards):
+        for i in range(self.configs["interface_boards"]):
             package = "current {}".format(i)
             self.send(package)
             currents[i] = self.receive()
@@ -89,12 +104,13 @@ class sepdMonitor:
     
 
 
-logging.basicConfig(level=logging.DEBUG)
-logging.debug("opening monitor")
 with sepdMonitor() as monitor:
+    # monitor.make_config_file()
+    # sys.exit()
+    logging.debug("opening monitor")
     for i in range(5):
         temperatures = monitor.get_temperatures()
         voltages = monitor.get_voltages()
         currents = monitor.get_currents()
-        time.sleep(5)
+        time.sleep(monitor.configs["poll_rate"])
 

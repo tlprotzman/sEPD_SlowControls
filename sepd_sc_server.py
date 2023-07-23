@@ -4,31 +4,25 @@ Tristan Protzman
 20 Jul 2023
 """
 
-HOST = "localhost"
-PORT = 12345
-
-# LV_ADDRESS = ("10.20.34.136", "9760")
-LV_ADDRESS = ("localhost", "5001")
-# CONTROLLER_ADDRESS = ("10.20.34.98", "9760")
-CONTROLLER_ADDRESS = ("localhost", "5000")
-
-import telnetlib
-import socketserver
+import json
 import logging
 import pickle
-import sys
+import socketserver
 import struct
+import sys
+import telnetlib
 
 
 class sepdServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    def __init__(self, address, handler):
-        socketserver.TCPServer.__init__(self, address, handler)
-        self.testvalue = 123
+    def __init__(self):
+        self.configs = self.load_configs()
+        logging.basicConfig(level=self.configs["logging_level"])
+        socketserver.TCPServer.__init__(self, (self.configs["host"], self.configs["port"]), sepdServerHandler)
 
     def __enter__(self):
         logging.info("entering context manager")
-        self.lv_telnet = self.openTelnetConnection(*LV_ADDRESS)
-        self.controller_telnet = self.openTelnetConnection(*CONTROLLER_ADDRESS)
+        self.lv_telnet = self.open_telnet_connection(self.configs["lv_host"], self.configs["lv_port"])
+        self.controller_telnet = self.open_telnet_connection(self.configs["controller_host"], self.configs["controller_port"])
         return socketserver.TCPServer.__enter__(self)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -36,8 +30,24 @@ class sepdServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         self.lv_telnet.close()
         self.controller_telnet.close()
         return socketserver.TCPServer.__exit__(self, exc_type, exc_val, exc_tb)
+    
+    def load_configs(self, file="server_config.json"):
+        with open(file, "r") as f:
+            return json.load(f)
+        
+    def make_config_file(self, file="server_config.json"):
+        configs = {}
+        configs["host"] = "localhost"
+        configs["port"] = 12345
+        configs["lv_host"] = "localhost"
+        configs["lv_port"] = 5001
+        configs["controller_host"] = "localhost"
+        configs["controller_port"] = 5000
+        configs["logging_level"] = logging.DEBUG
+        with open(file, "w") as f:
+            json.dump(configs, f, indent=4)
 
-    def openTelnetConnection(self, host, port):
+    def open_telnet_connection(self, host, port):
         try:
             logging.info("Connecting to {}:{} via telnet".format(host, port))
             tn = telnetlib.Telnet(host, port, timeout=5)
@@ -134,12 +144,11 @@ class sepdServerHandler(socketserver.StreamRequestHandler):
 
         
 
+def main():
+    with sepdServer() as server:
+        # Activate the server; this will keep running until you
+        # interrupt the program with Ctrl-C
+        server.serve_forever()
 
-
-
-
-logging.basicConfig(level=logging.DEBUG)
-with sepdServer((HOST, PORT), sepdServerHandler) as server:
-    # Activate the server; this will keep running until you
-    # interrupt the program with Ctrl-C
-    server.serve_forever()
+if __name__ == "__main__":
+    main()

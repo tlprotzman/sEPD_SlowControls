@@ -1,0 +1,7 @@
+{
+    "host": "localhost",
+    "port": 12345,
+    "logging_level": 10,
+    "poll_rate": 1,
+    "interface_boards": 1
+}

@@ -1,0 +1,9 @@
+{
+    "host": "localhost",
+    "port": 12345,
+    "lv_host": "localhost",
+    "lv_port": 5001,
+    "controller_host": "localhost",
+    "controller_port": 5000,
+    "logging_level": 10
+}
