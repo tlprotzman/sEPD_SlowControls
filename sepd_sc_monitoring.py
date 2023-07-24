@@ -13,7 +13,7 @@ import time
 
 
 class sepdMonitor:
-    def __init__(self, config_file):
+    def __init__(self, config_file=None):
         if config_file is None:
             self.configs = self.load_configs()
         else:
