@@ -64,14 +64,38 @@ def sepd_information(verbose=False):
     # Voltage monitors
     logging.debug("getting voltages")
     voltages = monitor.get_voltages()
-    print(voltages)
-    if "voltages" not in metrics:
+    # print(voltages)
+    if "voltages" not in metrics.keys():
         metrics["voltages"] = Gauge(f'{metric_prefix}_voltages', "Interface board voltages", ["interface", "rail"], unit="V", registry=registry)
     for interface_board in voltages.keys():
         logging.debug(f"Writing for interface board {interface_board}")
         metrics["voltages"].labels(interface=interface_board, rail="positive").set(voltages[interface_board]["positive"])
         metrics["voltages"].labels(interface=interface_board, rail="negative").set(voltages[interface_board]["negative"])
         metrics["voltages"].labels(interface=interface_board, rail="bias").set(voltages[interface_board]["bias"])
+
+    temperatures = monitor.get_temperatures()
+    # print(temperatures)
+    if "temperatures" not in metrics.keys():
+        metrics["temperatures"] = Gauge(f'{metric_prefix}_temperatures', "Interface board temperatures", ["interface", "point"], unit="C", registry=registry)
+    for interface_board in temperatures.keys():
+        for i, temp in enumerate(temperatures[interface_board]):
+            metrics["temperature"].labels(interface=interface_board, point=i).set(temp)
+
+    currents = monitor.get_currents()
+    if "currents" not in metrics.keys():
+        metrics["currents"] = Gauge(f'{metric_prefix}_currents', "SiPM Currents", ["sector", "tile"], unit="uA", registry=registry)
+    for interface_board in currents.keys():
+        for i, current in enumerate(currents)[interface_board]:
+            sector = 0
+            if interface_board == 0 and i < 32:
+                sector = 5
+            elif interface_board == 0 and i >= 32:
+                sector = 0
+            metrics["currents"].labels(sector=sector, tile = i % 32).set(current)
+    
+
+
+
 
 sepd_information()
 
