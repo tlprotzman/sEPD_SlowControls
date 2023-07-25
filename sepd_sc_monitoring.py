@@ -52,7 +52,7 @@ class sepdMonitor:
 
     def send(self, package):
         package = package + "\n"
-        logging.info("Sending to server: {}".format(package))
+        logging.debug("Sending to server: {}".format(package))
         logging.debug("{} bytes".format(len(bytes(package, "utf-8"))))
         self.connection.sendall(bytes(package, "utf-8"))
 
@@ -115,7 +115,7 @@ def main(argv):
         # monitor.make_config_file()
         # sys.exit()
         logging.debug("opening monitor")
-        for i in range(5):
+        while True:
             temperatures = monitor.get_temperatures()
             voltages = monitor.get_voltages()
             currents = monitor.get_currents()

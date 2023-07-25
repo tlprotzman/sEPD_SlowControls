@@ -1,0 +1,7 @@
+{
+    "host": "daq02.sphenix.bnl.gov",
+    "port": 18015,
+    "logging_level": 20,
+    "poll_rate": 10,
+    "interface_boards": 1
+}

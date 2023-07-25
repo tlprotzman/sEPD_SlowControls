@@ -27,7 +27,7 @@ import sepd_sc_monitoring
 # process input arguments
 parser = argparse.ArgumentParser(
     prog='status',
-    description='Prometheus Data Exporter for sPHENIX TPOT HV module',
+    description='Prometheus Data Exporter for sPHENIX sEPD Controls',
     epilog='')
 parser.add_argument('-p', '--port', default=5100,  help='Webservice port')
 parser.add_argument('-l', '--limit', default=2,
@@ -62,6 +62,7 @@ monitor.connect()
 
 def sepd_information(verbose=False):
     # Voltage monitors
+    logging.debug("getting voltages")
     voltages = monitor.get_voltages()
     print(voltages)
     if "voltages" not in metrics:
@@ -71,6 +72,8 @@ def sepd_information(verbose=False):
         metrics["voltages"].labels(interface=interface_board, rail="positive").set(voltages[interface_board]["positive"])
         metrics["voltages"].labels(interface=interface_board, rail="negative").set(voltages[interface_board]["negative"])
         metrics["voltages"].labels(interface=interface_board, rail="bias").set(voltages[interface_board]["bias"])
+
+sepd_information()
 
 
 # web service
