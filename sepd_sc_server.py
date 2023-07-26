@@ -92,6 +92,14 @@ class sepdServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         logging.info("received {}".format(response))
         currents = response[:-1].split()
         return currents
+    
+    def send_arbitrary_command(self, command):
+        command = command.encode("ascii") + b"\n\r"
+        logging.info("sending {} to controller".format(command))
+        self.controller_telnet.write(command)
+        response = self.controller_telnet.read_until(b'>').decode()
+        logging.info("received {}".format(response))
+        return response
 
 
 class sepdServerHandler(socketserver.StreamRequestHandler):
@@ -132,6 +140,11 @@ class sepdServerHandler(socketserver.StreamRequestHandler):
                         package = self.server.query_sipm_current(card)
                     except Exception as e:
                         package = "Specify interface board number: {}".format(e)
+
+                elif data[0] == "arb":
+                    command = "".join(data[1:])
+                    logging.debug(f"processing arbitrary command {command}")
+                    package = self.server.send_arbitrary_command(command)
 
                 elif data[0] == "shutdown":
                     self.server.shutdown()

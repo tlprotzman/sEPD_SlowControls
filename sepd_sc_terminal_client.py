@@ -84,3 +84,13 @@ if sys.argv[1] == "h":
         sock.connect((HOST, PORT))
         sock.sendall(bytes("help\n", "utf-8"))
         print(receive(sock))
+
+if sys.argv[1] == "a":
+    # print(sys.argv)
+    command = "arb " + "".join(sys.argv[2:])
+    command = command.replace("#", "$")
+    logging.info(f"Sending arbitrary command {command}")
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.connect((HOST, PORT))
+        sock.sendall(bytes(f"{command}\n", "utf-8"))
+        print(receive(sock))
