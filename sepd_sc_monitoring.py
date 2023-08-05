@@ -10,7 +10,7 @@ import socket
 import struct
 import sys
 import time
-
+import telnetlib
 
 class sepdMonitor:
     def __init__(self, config_file=None):
@@ -22,104 +22,105 @@ class sepdMonitor:
         logging.basicConfig(level=self.configs["logging_level"])
         pass
 
-    def __enter__(self):
-        self.connect()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
     def load_configs(self, file="monitoring_config.json"):
         with open(file, "r") as f:
             return json.load(f)
 
-    def make_config_file(self, file="monitoring_config.json"):
-        configs = {}
-        configs["host"] = "localhost"
-        configs["port"] = 12345
-        configs["logging_level"] = logging.DEBUG
-        configs["poll_rate"] = 1     # second
-        configs["interface_boards"] = 1
-        with open(file, "w") as f:
-            json.dump(configs, f, indent=4)
-
-    def connect(self):
-        self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.connection.connect((self.configs["host"], self.configs["port"]))
-
-    def close(self):
-        self.connection.close()
-
-    def send(self, package):
-        package = package + "\n"
-        logging.debug("Sending to server: {}".format(package))
-        logging.debug("{} bytes".format(len(bytes(package, "utf-8"))))
-        self.connection.sendall(bytes(package, "utf-8"))
-
-    def receive(self):
-        first_package = self.connection.recv(4)
-        logging.debug("First package received: {}".format(first_package))
-        data_size = struct.unpack('>I', first_package)[0]
-        logging.debug("Receiving {} bytes".format(data_size))
-        received_payload = b""
-        reamining_payload_size = data_size
-        while reamining_payload_size != 0:
-            received_payload += self.connection.recv(reamining_payload_size)
-            reamining_payload_size = data_size - len(received_payload)
-        data = pickle.loads(received_payload)
-        logging.info("Received from server: {}".format(data))
-        return data
-
-    def get_temperatures(self):
-        logging.info("Getting temperature")
+    def get_temperatures(self, crate, side):
         temperatures = {}
-        for i in range(self.configs["interface_boards"]):
-            package = "temperature {}".format(i)
-            self.send(package)
-            temperatures[i] = self.receive()
-        logging.debug("Temperatures:")
-        logging.debug(temperatures)
+        offset = 0
+        if side == "south":
+            offset = 6
+        for board in range(6):
+            command = "$T{}".format(board).encode("ascii") + b"\n\r"
+            logging.info("sending {} to controller".format(command))
+            crate.write(command)
+            response = crate.read_until(b'>').decode()
+            logging.info("received {}".format(response))
+            temperatures[board + offset] = response[:-1].split()
         return temperatures
-    
-
-    def get_voltages(self):
-        logging.info("Getting voltage")
+            
+    def get_interface_voltages(self, crate, side):
         voltages = {}
-        for i in range(self.configs["interface_boards"]):
-            package = "voltage {}".format(i)
-            self.send(package)
-            voltages[i] = self.receive()
-        logging.debug("voltages:")
-        logging.debug(voltages)
+        offset = 0
+        if side == "south":
+            offset = 6
+        for board in range(6):
+            command = "$U{}".format(board).encode("ascii") + b"\n\r"
+            logging.info("sending {} to controller".format(command))
+            crate.write(command)
+            response = crate.read_until(b'>').decode()
+            logging.info("received {}".format(response))
+            response = response[:-2].split(",")
+            positive_voltage = float(response[0][response[0].find("=") + 1:].strip())
+            negative_voltage = float(response[1][response[1].find("=") + 1:].strip())
+            bias_voltage = float(response[2][response[2].find("=") + 1:].strip())
+            voltages[board + offset] = {"positive" : positive_voltage, "negative" : negative_voltage, "bias" : bias_voltage}
         return voltages
-    
-    def get_currents(self):
-        logging.info("Getting current")
+
+    def get_interface_current(self, crate, side):
         currents = {}
-        for i in range(self.configs["interface_boards"]):
-            package = "current {}".format(i)
-            self.send(package)
-            currents[i] = self.receive()
-        logging.debug("currents:")
-        logging.debug(currents)
+        offset = 0
+        if side == "south":
+            offset = 6
+        for board in range(6):
+            command = "$I{}".format(board).encode("ascii") + b"\n\r"
+            logging.info("sending {} to controller".format(command))
+            crate.write(command)
+            response = crate.read_until(b'>').decode()
+            logging.info("received {}".format(response))
+            currents[board + offset] = response[:-1].split()
         return currents
-    
 
-    
+    def get_lv_voltages(self, crate):
+        voltagess = {}
+        for board in (1, 2):
+            command = "$V0{}".format(board).encode("ascii") + b"\n\r"
+            logging.info("sending {} to lv crate".format(command))
+            crate.write(command)
+            response = crate.read_until(b'>').decode()
+            logging.info("received {}".format(response))
+            v = response[2:-2].split(",")
+            voltagess[board] = {i : {"positive" : v[i], "negative" : v[i+8]} for i in range(8)}
+        return voltagess
 
-def main(argv):
-    config_file = None
-    if len(argv) > 1:
-        config_file = argv[1]
-    with sepdMonitor(config_file) as monitor:
-        # monitor.make_config_file()
-        # sys.exit()
-        logging.debug("opening monitor")
-        while True:
-            temperatures = monitor.get_temperatures()
-            voltages = monitor.get_voltages()
-            currents = monitor.get_currents()
-            time.sleep(monitor.configs["poll_rate"])
+    def get_lv_currents(self, crate):
+        currents = {}
+        for board in (1, 2):
+            command = "$I0{}".format(board).encode("ascii") + b"\n\r"
+            logging.info("sending {} to lv crate".format(command))
+            crate.write(command)
+            response = crate.read_until(b'>').decode()
+            logging.info("received {}".format(response))
+            c = response[2:-2].split(",")
+            currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
+        return currents
 
-if __name__ == "__main__":
-    main(sys.argv)
+
+    def get_sEPD_metrics(self):
+        timeout = 5
+        temperatures = {}
+        interface_voltages = {}
+        interface_currents = {}
+        for side in ("north", "south"):
+            with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
+                temperatures.update(self.get_temperatures(crate, side))
+                interface_voltages.update(self.get_interface_voltages(crate, side))
+                interface_currents.update(self.get_interface_current(crate, side))
+
+        lv_voltages = {}
+        lv_currents = {}
+        with telnetlib.Telnet(self.configs["lv_host"], self.configs["lv_port"], timeout) as crate:
+            lv_voltages.update(self.get_lv_voltages(crate))
+            lv_currents.update(self.get_lv_currents(crate))
+
+        response = {"temperatures" : temperatures,
+                    "interface_voltages" : interface_voltages,
+                    "interface_currents" : interface_currents,
+                    "lv_voltages" : lv_voltages,
+                    "lv_currents" : lv_currents}
+        return response
+        
+            
+
+

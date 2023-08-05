@@ -1,7 +1,11 @@
 {
-    "host": "localhost",
-    "port": 12345,
+    "lv_host": "localhost",
+    "lv_port": 15000,
+    "north_controller_host": "localhost",
+    "north_controller_port": 15001,
+    "south_controller_host": "localhost",
+    "south_controller_port": 15002,
     "logging_level": 10,
-    "poll_rate": 1,
-    "interface_boards": 1
+    "poll_rate": 10,
+    "interface_boards": 12
 }

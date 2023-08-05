@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 """
-organization
+Tristan Protzman 
+tlprotzman@gmail.com
 
-metric: supply_voltage
-    labels: interface_board, rail
-metric: temperature
-    labels: interface_board
+TODO:
+* Get bias crate status
+* Add timeout to telnet commands
+* Add mapping from interface boards -> sector and channel -> tile
 """
 
 import argparse
@@ -57,14 +58,23 @@ request_time = Summary(f'{metric_prefix}_requests_processing_seconds', 'Inprogre
 
 
 monitor = sepd_sc_monitoring.sepdMonitor(args.sepd_config)
-monitor.connect()
+
 
 
 def sepd_information(verbose=False):
     # Voltage monitors
     logging.debug("getting voltages")
-    voltages = monitor.get_voltages()
-    # print(voltages)
+    all_metrics = monitor.get_sEPD_metrics()
+    print(json.dumps(all_metrics, sort_keys=True, indent=4))
+
+    temperatures = all_metrics["temperatures"]
+    if "temperatures" not in metrics.keys():
+        metrics["temperatures"] = Gauge(f'{metric_prefix}_temperatures', "Interface board temperatures", ["interface", "point"], unit="C", registry=registry)
+    for interface_board in temperatures.keys():
+        for i, temp in enumerate(temperatures[interface_board]):
+            metrics["temperatures"].labels(interface=int(interface_board), point=int(i)).set(temp)
+
+    voltages = all_metrics["interface_voltages"]
     if "voltages" not in metrics.keys():
         metrics["voltages"] = Gauge(f'{metric_prefix}_voltages', "Interface board voltages", ["interface", "rail"], unit="V", registry=registry)
     for interface_board in voltages.keys():
@@ -73,33 +83,31 @@ def sepd_information(verbose=False):
         metrics["voltages"].labels(interface=int(interface_board), rail="negative").set(voltages[interface_board]["negative"])
         metrics["voltages"].labels(interface=int(interface_board), rail="bias").set(voltages[interface_board]["bias"])
 
-    temperatures = monitor.get_temperatures()
-    # print(temperatures)
-    if "temperatures" not in metrics.keys():
-        metrics["temperatures"] = Gauge(f'{metric_prefix}_temperatures', "Interface board temperatures", ["interface", "point"], unit="C", registry=registry)
-    for interface_board in temperatures.keys():
-        for i, temp in enumerate(temperatures[interface_board]):
-            metrics["temperatures"].labels(interface=int(interface_board), point=int(i)).set(temp)
-
-    currents = monitor.get_currents()
+    currents = all_metrics["interface_currents"]
     if "currents" not in metrics.keys():
         metrics["currents"] = Gauge(f'{metric_prefix}_currents', "SiPM Currents", ["sector", "tile"], unit="uA", registry=registry)
     for interface_board in currents.keys():
         for i, current in enumerate(currents[interface_board]):
-            sector = 0
-            if interface_board == 0 and i < 32:
-                sector = 5
-            elif interface_board == 0 and i >= 32:
-                sector = 0
+            sector = 2 * interface_board + (i // 32)
             metrics["currents"].labels(sector=int(sector), tile = int(i % 32)).set(current)
+
+    lv_voltages = all_metrics["lv_voltages"]
+    if "lv_voltages" not in metrics.keys():
+        metrics["lv_voltages"] = Gauge(f"{metric_prefix}_lv_voltages", "LV crate voltages", ["board", "channel", "rail"], unit="V", registry=registry)
+    for interface_board in lv_voltages.keys():
+        for channel in lv_voltages[interface_board]:
+            metrics["lv_voltages"].labels(board=int(interface_board), channel=int(channel), rail="positive").set(lv_voltages[interface_board][channel]["positive"])
+            metrics["lv_voltages"].labels(board=int(interface_board), channel=int(channel), rail="negative").set(lv_voltages[interface_board][channel]["negative"])
+
+    lv_currents = all_metrics["lv_currents"]
+    if "lv_currents" not in metrics.keys():
+        metrics["lv_currents"] = Gauge(f"{metric_prefix}_lv_currents", "LV crate currents", ["board", "channel", "rail"], unit="A", registry=registry)
+    for interface_board in lv_currents.keys():
+        for channel in lv_currents[interface_board]:
+            metrics["lv_currents"].labels(board=int(interface_board), channel=int(channel), rail="positive").set(lv_currents[interface_board][channel]["positive"])
+            metrics["lv_currents"].labels(board=int(interface_board), channel=int(channel), rail="negative").set(lv_currents[interface_board][channel]["negative"])
+
     
-
-
-
-
-sepd_information()
-
-
 # web service
 app = Flask(__name__)
 

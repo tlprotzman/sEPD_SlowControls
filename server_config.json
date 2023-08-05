@@ -2,8 +2,10 @@
     "host": "localhost",
     "port": 12345,
     "lv_host": "localhost",
-    "lv_port": 5001,
-    "controller_host": "localhost",
-    "controller_port": 5000,
+    "lv_port": 5000,
+    "north_controller_host": "localhost",
+    "north_controller_port": 5001,
+    "south_controller_host": "localhost",
+    "south_controller_port": 5002,
     "logging_level": 10
 }
