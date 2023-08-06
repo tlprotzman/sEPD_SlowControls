@@ -1,7 +1,6 @@
 [Unit]
 Description=sPHENIX sEPD Prometheus TSDB Exporter
 After=network.target home.mount
-After=sepd_server.service
 StartLimitIntervalSec=10
 
 [Service]
