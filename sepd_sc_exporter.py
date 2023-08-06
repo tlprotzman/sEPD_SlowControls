@@ -72,6 +72,8 @@ def sepd_information(verbose=False):
         metrics["temperatures"] = Gauge(f'{metric_prefix}_temperatures', "Interface board temperatures", ["interface", "point"], unit="C", registry=registry)
     for interface_board in temperatures.keys():
         for i, temp in enumerate(temperatures[interface_board]):
+            if float(temp) < 0: # means interface board is off
+                continue
             metrics["temperatures"].labels(interface=int(interface_board), point=int(i)).set(temp)
 
     voltages = all_metrics["interface_voltages"]
@@ -79,6 +81,8 @@ def sepd_information(verbose=False):
         metrics["voltages"] = Gauge(f'{metric_prefix}_voltages', "Interface board voltages", ["interface", "rail"], unit="V", registry=registry)
     for interface_board in voltages.keys():
         logging.debug(f"Writing for interface board {interface_board}")
+        if float(voltages[interface_board]["positive"]) > 12:
+            continue # means interface board is off
         metrics["voltages"].labels(interface=int(interface_board), rail="positive").set(voltages[interface_board]["positive"])
         metrics["voltages"].labels(interface=int(interface_board), rail="negative").set(voltages[interface_board]["negative"])
         metrics["voltages"].labels(interface=int(interface_board), rail="bias").set(voltages[interface_board]["bias"])
@@ -88,6 +92,8 @@ def sepd_information(verbose=False):
         metrics["currents"] = Gauge(f'{metric_prefix}_currents', "SiPM Currents", ["sector", "tile"], unit="uA", registry=registry)
     for interface_board in currents.keys():
         for i, current in enumerate(currents[interface_board]):
+            if float(current) > 2045: # means interface board is off
+                continue
             sector = 2 * interface_board + (i // 32)
             metrics["currents"].labels(sector=int(sector), tile = int(i % 32)).set(current)
 
