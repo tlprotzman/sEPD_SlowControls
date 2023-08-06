@@ -115,12 +115,11 @@ def get_lv_currents(crate):
         currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
     return currents
 
-@timeout(default_timeout)
 def get_bias_status():
     bias_status = {}
     logging.debug("Getting bias crate info")
-    output = subprocess.run(["/home/phnxrc/BiasControl/sEPD_status.sh"], capture_output=True, text=True)
-    channel_info = [line for line in output.stdout.splitlines()]
+    output = subprocess.check_output("/home/phnxrc/BiasControl/sEPD_status.sh").decode()
+    channel_info = [line for line in output.splitlines()]
     for channel in channel_info:
         info = channel.split()
         channel_number = info[0][3:]
@@ -131,7 +130,7 @@ def get_bias_status():
         bias_status[channel_number]["current_readback"] = float(info[4])
         bias_status[channel_number]["channel_state"] = info[6]
         bias_status[channel_number]["channel_okay"] = info[7]
-    logging.debug(json.dumps(bias_status, indent=4))
+    print(json.dumps(bias_status, indent=4))
     return bias_status
 
 class sepdMonitor:
@@ -167,6 +166,8 @@ class sepdMonitor:
         with telnetlib.Telnet(self.configs["lv_host"], self.configs["lv_port"], timeout) as crate:
             lv_voltages.update(get_lv_voltages(crate))
             lv_currents.update(get_lv_currents(crate))
+
+        get_bias_status()
 
         response = {"temperatures" : temperatures,
                     "interface_voltages" : interface_voltages,

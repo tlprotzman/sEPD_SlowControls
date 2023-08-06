@@ -1,7 +1,11 @@
 {
-    "host": "daq02.sphenix.bnl.gov",
-    "port": 18015,
-    "logging_level": 20,
+    "lv_host": "10.20.34.136",
+    "lv_port": 9760,
+    "north_controller_host": "10.20.34.98",
+    "north_controller_port": 9760,
+    "south_controller_host": "10.20.34.99",
+    "south_controller_port": 9760,
+    "logging_level": 0,
     "poll_rate": 10,
-    "interface_boards": 1
+    "interface_boards": 12
 }
