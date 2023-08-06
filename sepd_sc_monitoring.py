@@ -5,17 +5,10 @@ Jul 23 2023
 
 import json
 import logging
-import pickle
-import socket
-import struct
-import sys
-import time
 import telnetlib
-import os
-import errno
 import functools
-import signal
 import multiprocessing
+import subprocess
 
 multiprocessing.set_start_method('fork')
 
@@ -121,6 +114,25 @@ def get_lv_currents(crate):
         c = response[2:-2].split(",")
         currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
     return currents
+
+@timeout(default_timeout)
+def get_bias_status():
+    bias_status = {}
+    logging.debug("Getting bias crate info")
+    output = subprocess.run(["/home/phnxrc/BiasControl/sEPD_status.sh"], capture_output=True, text=True)
+    channel_info = [line for line in output.stdout.splitlines()]
+    for channel in channel_info:
+        info = channel.split()
+        channel_number = info[0][3:]
+        bias_status[channel_number] = {}
+        bias_status[channel_number]["bias_setpoint"] = float(info[1])
+        bias_status[channel_number]["current_trip"] = float(info[2])
+        bias_status[channel_number]["bias_readback"] = float(info[3])
+        bias_status[channel_number]["current_readback"] = float(info[4])
+        bias_status[channel_number]["channel_state"] = info[6]
+        bias_status[channel_number]["channel_okay"] = info[7]
+    logging.debug(json.dumps(bias_status, indent=4))
+    return bias_status
 
 class sepdMonitor:
     def __init__(self, config_file=None):
