@@ -125,12 +125,11 @@ def get_bias_status():
         channel_number = info[0][3:]
         bias_status[channel_number] = {}
         bias_status[channel_number]["bias_setpoint"] = float(info[1])
-        bias_status[channel_number]["current_trip"] = float(info[2])
+        bias_status[channel_number]["current_limit"] = float(info[2])
         bias_status[channel_number]["bias_readback"] = float(info[3])
         bias_status[channel_number]["current_readback"] = float(info[4])
         bias_status[channel_number]["channel_state"] = info[6]
         bias_status[channel_number]["channel_okay"] = info[7]
-    print(json.dumps(bias_status, indent=4))
     return bias_status
 
 class sepdMonitor:
@@ -167,13 +166,14 @@ class sepdMonitor:
             lv_voltages.update(get_lv_voltages(crate))
             lv_currents.update(get_lv_currents(crate))
 
-        get_bias_status()
+        bias = get_bias_status()
 
         response = {"temperatures" : temperatures,
                     "interface_voltages" : interface_voltages,
                     "interface_currents" : interface_currents,
                     "lv_voltages" : lv_voltages,
-                    "lv_currents" : lv_currents}
+                    "lv_currents" : lv_currents,
+                    "bias_info" : bias}
         return response
         
             

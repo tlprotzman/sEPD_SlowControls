@@ -107,6 +107,19 @@ def sepd_information(verbose=False):
             metrics["lv_currents"].labels(board=int(interface_board), channel=int(channel), rail="positive").set(lv_currents[interface_board][channel]["positive"])
             metrics["lv_currents"].labels(board=int(interface_board), channel=int(channel), rail="negative").set(lv_currents[interface_board][channel]["negative"])
 
+    bias_info = all_metrics["bias_info"]
+    bias_gauges = {"bias_setpoint" : {"name" : "Bias Setpoint", "unit" : "V"},
+                   "bias_readback" : {"name" : "Bias Readback", "unit" : "V"},
+                   "current_limit" : {"name" : "Current Trip Limit", "unit" : "uA"},
+                   "current_readback" : {"name" : "Current Readback", "unit" : "uA"},
+                   "channel_state" : {"name" : "Channel State", "unit" : ""},
+                   "channel_okay" : {"name" : "Channel Okay", "unit" : ""}}
+    for key in bias_gauges.keys():
+        if key not in metrics.keys():
+            metrics[key] = Gauge(f"{metric_prefix}_{key}", bias_gauges[key]["name"], ["channel"], unit=bias_gauges[key]["unit"], registry=registry)
+    for channel in bias_info.keys():
+        for metric in bias_gauges.keys():
+            metrics[metric].labels(channel=channel).set(bias_info[metric][channel])
     
 # web service
 app = Flask(__name__)
