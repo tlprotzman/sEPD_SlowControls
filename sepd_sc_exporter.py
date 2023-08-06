@@ -119,7 +119,7 @@ def sepd_information(verbose=False):
             metrics[key] = Gauge(f"{metric_prefix}_{key}", bias_gauges[key]["name"], ["channel"], unit=bias_gauges[key]["unit"], registry=registry)
     for channel in bias_info.keys():
         for metric in bias_gauges.keys():
-            metrics[metric].labels(channel=channel).set(bias_info[metric][channel])
+            metrics[metric].labels(channel=channel).set(bias_info[channel][metric])
     
 # web service
 app = Flask(__name__)

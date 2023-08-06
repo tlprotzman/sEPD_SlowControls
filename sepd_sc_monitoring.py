@@ -128,8 +128,8 @@ def get_bias_status():
         bias_status[channel_number]["current_limit"] = float(info[2])
         bias_status[channel_number]["bias_readback"] = float(info[3])
         bias_status[channel_number]["current_readback"] = float(info[4])
-        bias_status[channel_number]["channel_state"] = info[6]
-        bias_status[channel_number]["channel_okay"] = info[7]
+        bias_status[channel_number]["channel_state"] = 1 if info[6] == "on" else 0
+        bias_status[channel_number]["channel_okay"] = 1 if info[7] == "Ok" else 0
     return bias_status
 
 class sepdMonitor:
