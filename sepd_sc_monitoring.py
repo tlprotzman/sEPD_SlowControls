@@ -51,7 +51,7 @@ def get_temperatures(crate, side):
         crate.write(command)
         response = crate.read_until(b'>').decode()
         logging.debug("received {}".format(response))
-        if float(response[:-1].split()) < 0:
+        if float(response[:-1].split()[0]) < 0:
             continue
         temperatures[board + offset] = response[:-1].split()
     return temperatures
@@ -90,7 +90,7 @@ def get_interface_current(crate, side):
         crate.write(command)
         response = crate.read_until(b'>').decode()
         logging.debug("received {}".format(response))
-        if int(response[:-1].split()[0]) > 2047:
+        if float(response[:-1].split()[0]) > 2047:
             continue
         currents[board + offset] = response[:-1].split()
     return currents
@@ -121,6 +121,7 @@ def get_lv_currents(crate):
         currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
     return currents
 
+@timeout(default_timeout)
 def get_bias_status():
     bias_status = {}
     logging.debug("Getting bias crate info")
