@@ -51,6 +51,8 @@ def get_temperatures(crate, side):
         crate.write(command)
         response = crate.read_until(b'>').decode()
         logging.debug("received {}".format(response))
+        if float(response[:-1].split()) < 0:
+            continue
         temperatures[board + offset] = response[:-1].split()
     return temperatures
 
@@ -71,6 +73,8 @@ def get_interface_voltages(crate, side):
         positive_voltage = float(response[0][response[0].find("=") + 1:].strip())
         negative_voltage = float(response[1][response[1].find("=") + 1:].strip())
         bias_voltage = float(response[2][response[2].find("=") + 1:].strip())
+        if positive_voltage > 15:
+            continue
         voltages[board + offset] = {"positive" : positive_voltage, "negative" : negative_voltage, "bias" : bias_voltage}
     return voltages
 
@@ -86,6 +90,8 @@ def get_interface_current(crate, side):
         crate.write(command)
         response = crate.read_until(b'>').decode()
         logging.debug("received {}".format(response))
+        if int(response[:-1].split()[0]) > 2047:
+            continue
         currents[board + offset] = response[:-1].split()
     return currents
 
