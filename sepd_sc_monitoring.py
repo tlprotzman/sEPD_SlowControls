@@ -11,6 +11,116 @@ import struct
 import sys
 import time
 import telnetlib
+import os
+import errno
+import functools
+import signal
+import multiprocessing
+
+multiprocessing.set_start_method('fork')
+
+default_timeout = 2 # seconds
+
+"""
+Applies a timeout to any functions which returns a dict
+"""
+def timeout(timeout):
+    def decorator(func):
+        def return_value(func, retval, *args, **kwargs): # Uses a dict in shared memory rather than return value
+            retval.update(func(*args, **kwargs))
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            logging.debug(f"Starting thread for function {func.__name__}")
+            value = {}
+            with multiprocessing.Manager() as manager:
+                value = manager.dict()
+                p = multiprocessing.Process(target=return_value, args=(func, value) + args, kwargs=kwargs)
+                p.start()
+                p.join(timeout)
+                if p.is_alive():
+                    logging.warning(f"Function {func.__name__} timed out in {timeout} seconds.  Terminating function...")
+                    p.terminate()
+                value = value.copy()
+            return value
+        return wrapper
+    return decorator
+
+@timeout(default_timeout)
+def get_temperatures(crate, side):
+    temperatures = {}
+    offset = 0
+    if side == "south":
+        offset = 6
+    for board in range(6):
+        command = "$T{}".format(board).encode("ascii") + b"\n\r"
+        logging.debug("sending {} to controller".format(command))
+        crate.write(command)
+        response = crate.read_until(b'>').decode()
+        logging.debug("received {}".format(response))
+        temperatures[board + offset] = response[:-1].split()
+    return temperatures
+
+    
+@timeout(default_timeout)
+def get_interface_voltages(crate, side):
+    voltages = {}
+    offset = 0
+    if side == "south":
+        offset = 6
+    for board in range(6):
+        command = "$U{}".format(board).encode("ascii") + b"\n\r"
+        logging.debug("sending {} to controller".format(command))
+        crate.write(command)
+        response = crate.read_until(b'>').decode()
+        logging.debug("received {}".format(response))
+        response = response[:-2].split(",")
+        positive_voltage = float(response[0][response[0].find("=") + 1:].strip())
+        negative_voltage = float(response[1][response[1].find("=") + 1:].strip())
+        bias_voltage = float(response[2][response[2].find("=") + 1:].strip())
+        voltages[board + offset] = {"positive" : positive_voltage, "negative" : negative_voltage, "bias" : bias_voltage}
+    return voltages
+
+@timeout(default_timeout)
+def get_interface_current(crate, side):
+    currents = {}
+    offset = 0
+    if side == "south":
+        offset = 6
+    for board in range(6):
+        command = "$I{}".format(board).encode("ascii") + b"\n\r"
+        logging.debug("sending {} to controller".format(command))
+        crate.write(command)
+        response = crate.read_until(b'>').decode()
+        logging.debug("received {}".format(response))
+        currents[board + offset] = response[:-1].split()
+    return currents
+
+@timeout(default_timeout)
+def get_lv_voltages(crate):
+    voltagess = {}
+    for board in (1, 2):
+        command = "$V0{}".format(board).encode("ascii") + b"\n\r"
+        logging.debug("sending {} to lv crate".format(command))
+        crate.write(command)
+        response = crate.read_until(b'>').decode()
+        logging.debug("received {}".format(response))
+        v = response[2:-2].split(",")
+        voltagess[board] = {i : {"positive" : v[i], "negative" : v[i+8]} for i in range(8)}
+    return voltagess
+
+@timeout(default_timeout)
+def get_lv_currents(crate):
+    currents = {}
+    for board in (1, 2):
+        command = "$I0{}".format(board).encode("ascii") + b"\n\r"
+        logging.debug("sending {} to lv crate".format(command))
+        crate.write(command)
+        response = crate.read_until(b'>').decode()
+        logging.debug("received {}".format(response))
+        c = response[2:-2].split(",")
+        currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
+    return currents
 
 class sepdMonitor:
     def __init__(self, config_file=None):
@@ -26,93 +136,25 @@ class sepdMonitor:
         with open(file, "r") as f:
             return json.load(f)
 
-    def get_temperatures(self, crate, side):
-        temperatures = {}
-        offset = 0
-        if side == "south":
-            offset = 6
-        for board in range(6):
-            command = "$T{}".format(board).encode("ascii") + b"\n\r"
-            logging.info("sending {} to controller".format(command))
-            crate.write(command)
-            response = crate.read_until(b'>').decode()
-            logging.info("received {}".format(response))
-            temperatures[board + offset] = response[:-1].split()
-        return temperatures
-            
-    def get_interface_voltages(self, crate, side):
-        voltages = {}
-        offset = 0
-        if side == "south":
-            offset = 6
-        for board in range(6):
-            command = "$U{}".format(board).encode("ascii") + b"\n\r"
-            logging.info("sending {} to controller".format(command))
-            crate.write(command)
-            response = crate.read_until(b'>').decode()
-            logging.info("received {}".format(response))
-            response = response[:-2].split(",")
-            positive_voltage = float(response[0][response[0].find("=") + 1:].strip())
-            negative_voltage = float(response[1][response[1].find("=") + 1:].strip())
-            bias_voltage = float(response[2][response[2].find("=") + 1:].strip())
-            voltages[board + offset] = {"positive" : positive_voltage, "negative" : negative_voltage, "bias" : bias_voltage}
-        return voltages
-
-    def get_interface_current(self, crate, side):
-        currents = {}
-        offset = 0
-        if side == "south":
-            offset = 6
-        for board in range(6):
-            command = "$I{}".format(board).encode("ascii") + b"\n\r"
-            logging.info("sending {} to controller".format(command))
-            crate.write(command)
-            response = crate.read_until(b'>').decode()
-            logging.info("received {}".format(response))
-            currents[board + offset] = response[:-1].split()
-        return currents
-
-    def get_lv_voltages(self, crate):
-        voltagess = {}
-        for board in (1, 2):
-            command = "$V0{}".format(board).encode("ascii") + b"\n\r"
-            logging.info("sending {} to lv crate".format(command))
-            crate.write(command)
-            response = crate.read_until(b'>').decode()
-            logging.info("received {}".format(response))
-            v = response[2:-2].split(",")
-            voltagess[board] = {i : {"positive" : v[i], "negative" : v[i+8]} for i in range(8)}
-        return voltagess
-
-    def get_lv_currents(self, crate):
-        currents = {}
-        for board in (1, 2):
-            command = "$I0{}".format(board).encode("ascii") + b"\n\r"
-            logging.info("sending {} to lv crate".format(command))
-            crate.write(command)
-            response = crate.read_until(b'>').decode()
-            logging.info("received {}".format(response))
-            c = response[2:-2].split(",")
-            currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
-        return currents
+    
 
 
     def get_sEPD_metrics(self):
-        timeout = 5
+        timeout = 1
         temperatures = {}
         interface_voltages = {}
         interface_currents = {}
         for side in ("north", "south"):
             with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
-                temperatures.update(self.get_temperatures(crate, side))
-                interface_voltages.update(self.get_interface_voltages(crate, side))
-                interface_currents.update(self.get_interface_current(crate, side))
+                temperatures.update(get_temperatures(crate, side))
+                interface_voltages.update(get_interface_voltages(crate, side))
+                interface_currents.update(get_interface_current(crate, side))
 
         lv_voltages = {}
         lv_currents = {}
         with telnetlib.Telnet(self.configs["lv_host"], self.configs["lv_port"], timeout) as crate:
-            lv_voltages.update(self.get_lv_voltages(crate))
-            lv_currents.update(self.get_lv_currents(crate))
+            lv_voltages.update(get_lv_voltages(crate))
+            lv_currents.update(get_lv_currents(crate))
 
         response = {"temperatures" : temperatures,
                     "interface_voltages" : interface_voltages,

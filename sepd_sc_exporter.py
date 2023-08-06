@@ -37,7 +37,7 @@ parser.add_argument('-c', '--sepd_config', default=None, help='sEPD monitor conf
 args = parser.parse_args()
 
 throttling_limit = float(args.limit)
-print(f'Throttling request to no less than {throttling_limit} seconds')
+logging.info(f'Throttling request to no less than {throttling_limit} seconds')
 
 # initialization
 metric_prefix = 'sphenix_sEPD'
@@ -47,7 +47,7 @@ registry = CollectorRegistry()
 metrics = {}
 
 # Host prints
-print(f"Host name:        {socket.gethostname()}")
+logging.info(f"Host name:        {socket.gethostname()}")
 label_host[f"hostname"] = socket.gethostname()
 
 request_counter = Counter(f'{metric_prefix}_request_counter', 'Requests processed',
@@ -65,7 +65,7 @@ def sepd_information(verbose=False):
     # Voltage monitors
     logging.debug("getting voltages")
     all_metrics = monitor.get_sEPD_metrics()
-    print(json.dumps(all_metrics, sort_keys=True, indent=4))
+    logging.debug(json.dumps(all_metrics, sort_keys=True, indent=4))
 
     temperatures = all_metrics["temperatures"]
     if "temperatures" not in metrics.keys():
@@ -132,7 +132,7 @@ def requests_metrics():
 
         try:
             if (time.time() - requests_metrics.lastcall < throttling_limit):
-                print('requests_metrics: Time litmit throttled....')
+                logging.warning('requests_metrics: Time litmit throttled....')
                 request_counter.labels(status='throttled', **label_host).inc()
             else:
                 # refresh all readings
@@ -147,7 +147,7 @@ def requests_metrics():
                 request_counter.labels(status='updated', **label_host).inc()
 
         except Exception as e:
-            print(f'requests_metrics: caught {type(e)}: {e}')
+            logging.error(f'requests_metrics: caught {type(e)}: {e}')
             request_counter.labels(status='failed', **label_host).inc()
 
         request_time.labels(**label_host).observe(time.time() - start_time)
