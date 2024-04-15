@@ -22,7 +22,7 @@ import time
 from threading import Lock
 import sys
 import logging
-
+logging.basicConfig(level=logging.INFO)
 import sepd_sc_monitoring
 
 # process input arguments
@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser(
     description='Prometheus Data Exporter for sPHENIX sEPD Controls',
     epilog='')
 parser.add_argument('-p', '--port', default=5100,  help='Webservice port')
-parser.add_argument('-l', '--limit', default=2,
+parser.add_argument('-l', '--limit', default=1,
                     help='Scrubbing time throttling limit in seconds')
 parser.add_argument('-c', '--sepd_config', default=None, help='sEPD monitor config file')
 args = parser.parse_args()
@@ -154,6 +154,7 @@ def requests_metrics():
                 logging.warning('requests_metrics: Time litmit throttled....')
                 request_counter.labels(status='throttled', **label_host).inc()
             else:
+                logging.info(f'starting request calls at {time.time()}')
                 # refresh all readings
                 # clear metrics
                 for key, metric in metrics.items():
@@ -164,6 +165,7 @@ def requests_metrics():
 
                 requests_metrics.lastcall = time.time()
                 request_counter.labels(status='updated', **label_host).inc()
+                logging.info(f'ended request calls at {time.time()}')
 
         except Exception as e:
             logging.error(f'requests_metrics: caught {type(e)}: {e}')

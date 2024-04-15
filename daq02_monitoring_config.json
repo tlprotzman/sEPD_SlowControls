@@ -5,7 +5,7 @@
     "north_controller_port": 9760,
     "south_controller_host": "10.20.34.99",
     "south_controller_port": 9760,
-    "logging_level": 10,
+    "logging_level": 0,
     "poll_rate": 10,
     "interface_boards": 12
 }

@@ -6,13 +6,14 @@ Jul 23 2023
 import json
 import logging
 import telnetlib
+import socket
 import functools
 import multiprocessing
 import subprocess
 
 multiprocessing.set_start_method('fork')
 
-default_timeout = 2 # seconds
+default_timeout = 1 # seconds
 
 """
 Applies a timeout to any functions which returns a dict
@@ -90,29 +91,38 @@ def get_interface_current(crate, side):
     return currents
 
 @timeout(default_timeout)
-def get_lv_voltages(crate):
+def get_lv_voltages(crate, fake=False):
     voltagess = {}
-    for board in (1, 2):
-        command = "$V0{}".format(board).encode("ascii") + b"\n\r"
-        logging.debug("sending {} to lv crate".format(command))
-        crate.write(command)
-        response = crate.read_until(b'>').decode()
-        logging.debug("received {}".format(response))
-        v = response[2:-2].split(",")
-        voltagess[board] = {i : {"positive" : v[i], "negative" : v[i+8]} for i in range(8)}
+    if not fake:
+        for board in (1, 2):
+            command = "$V0{}".format(board).encode("ascii") + b"\n\r"
+            logging.debug("sending {} to lv crate".format(command))
+            crate.write(command)
+            response = crate.read_until(b'>').decode()
+            logging.debug("received {}".format(response))
+            v = response[2:-2].split(",")
+            voltagess[board] = {i : {"positive" : v[i], "negative" : v[i+8]} for i in range(8)}
+    else:
+        for board in (1, 2):
+            voltagess[board] = {i : {"positive" : -1, "negative" : -1} for i in range(8)}
     return voltagess
 
 @timeout(default_timeout)
-def get_lv_currents(crate):
+def get_lv_currents(crate, fake=False):
     currents = {}
-    for board in (1, 2):
-        command = "$I0{}".format(board).encode("ascii") + b"\n\r"
-        logging.debug("sending {} to lv crate".format(command))
-        crate.write(command)
-        response = crate.read_until(b'>').decode()
-        logging.debug("received {}".format(response))
-        c = response[2:-2].split(",")
-        currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
+    if not fake:
+        for board in (1, 2):
+            command = "$I0{}".format(board).encode("ascii") + b"\n\r"
+            logging.debug("sending {} to lv crate".format(command))
+            crate.write(command)
+            response = crate.read_until(b'>').decode()
+            logging.debug("received {}".format(response))
+            c = response[2:-2].split(",")
+            currents[board] = {i : {"positive" : c[i], "negative" : c[i+8]} for i in range(8)}
+    else:
+        for board in (1, 2):
+            currents[board] = {i : {"positive" : -1, "negative" : -1} for i in range(8)}
+
     return currents
 
 @timeout(default_timeout)
@@ -140,7 +150,6 @@ class sepdMonitor:
         else:
             self.configs = self.load_configs(config_file)
 
-        logging.basicConfig(level=self.configs["logging_level"])
         pass
 
     def load_configs(self, file="monitoring_config.json"):
@@ -151,22 +160,38 @@ class sepdMonitor:
 
 
     def get_sEPD_metrics(self):
-        timeout = 1
+        timeout = 3
         temperatures = {}
         interface_voltages = {}
         interface_currents = {}
         for side in ("north", "south"):
-            with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
-                temperatures.update(get_temperatures(crate, side))
-                interface_voltages.update(get_interface_voltages(crate, side))
-                interface_currents.update(get_interface_current(crate, side))
+            try:
+                with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
+                    temperatures.update(get_temperatures(crate, side))
+                    interface_voltages.update(get_interface_voltages(crate, side))
+                    interface_currents.update(get_interface_current(crate, side))
+            except socket.timeout:
+                logging.error("Could not connect to controller crate")
 
         lv_voltages = {}
         lv_currents = {}
-        with telnetlib.Telnet(self.configs["lv_host"], self.configs["lv_port"], timeout) as crate:
-            lv_voltages.update(get_lv_voltages(crate))
-            lv_currents.update(get_lv_currents(crate))
-
+        success = False
+        tries = 0
+        while not success and tries < 1:
+            try:
+                with telnetlib.Telnet(self.configs["lv_host"], self.configs["lv_port"], 0.5) as crate:
+                    lv_voltages.update(get_lv_voltages(crate))
+                    lv_currents.update(get_lv_currents(crate))
+                    success = True
+            except socket.timeout:
+                tries += 1
+                logging.error("Could not connect to lv crate, try {}".format(tries))
+        if not success:
+            logging.error("Faking lv crate data")
+            lv_voltages.update(get_lv_voltages(crate, fake=True))
+            lv_currents.update(get_lv_currents(crate, fake=True))
+    
+        bias = {}
         bias = get_bias_status()
 
         response = {"temperatures" : temperatures,

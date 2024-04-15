@@ -6,7 +6,7 @@ After=network.target home.mount
 Type=simple
 User=phnxrc
 WorkingDirectory=/home/phnxrc/sepd/sEPD_SlowControls
-ExecStart=/bin/bash -c 'source ./venv/bin/activate && python sepd_sc_exporter.py -p 9113 -c daq02_monitoring_config.json'
+ExecStart=/bin/bash -c 'source ./venv/bin/activate && python sepd_sc_exporter.py -p 9113 -c daq02_monitoring_config.json -l 15'
 KillMode=mixed
 
 [Install]
