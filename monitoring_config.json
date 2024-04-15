@@ -7,5 +7,6 @@
     "south_controller_port": 15002,
     "logging_level": 10,
     "poll_rate": 10,
-    "interface_boards": 12
+    "interface_boards": 12,
+    "mapping": "sEPD_InterfaceMapping.txt"
 }

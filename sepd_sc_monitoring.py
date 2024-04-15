@@ -10,6 +10,7 @@ import socket
 import functools
 import multiprocessing
 import subprocess
+import csv
 
 multiprocessing.set_start_method('fork')
 
@@ -40,6 +41,11 @@ def timeout(timeout):
         return wrapper
     return decorator
 
+
+"""
+Gets the temperature of each SiPM on the interface boards,
+translated to the proper space
+"""
 @timeout(default_timeout)
 def get_temperatures(crate, side):
     temperatures = {}
@@ -156,8 +162,39 @@ class sepdMonitor:
         with open(file, "r") as f:
             return json.load(f)
 
-    
+    def init_mapping(self):
+        if (self.configs["mapping"] is None):
+            logging.error("No mapping found in config file")
+            return
+        
+        def load_mapping(file):
+            mapping = []
+            with open(file, 'r') as csvfile:
+                reader = csv.reader(csvfile, delimiter=' ')
+                next(reader)  # Skip the first line
+                for row in reader:
+                    mapping.append(tuple([int(val) for val in row]))
+            return mapping
 
+        self.mapping = load_mapping(self.configs["mapping"])
+        
+        self.IB_to_tile = []
+        for IB in range(12):
+            self.IB_to_tile.append([])
+            for channel in range(64):
+                self.IB_to_tile[i].append(-1)
+        
+        self.tile_to_IB = []
+        for side in range(2):
+            self.tile_to_IB.append([])
+            for sector in range(12):
+                self.tile_to_IB[side].append([])
+                for tile in range(32):
+                    self.tile_to_IB[side][sector].append(-1)
+
+        for side, sector, tile, interface_board, channel in self.mapping:
+            self.IB_to_tile[interface_board][channel] = (side, sector, tile)
+            self.tile_to_IB[side][sector][tile] = (interface_board, channel)
 
     def get_sEPD_metrics(self):
         timeout = 3

@@ -69,12 +69,14 @@ def sepd_information(verbose=False):
 
     temperatures = all_metrics["temperatures"]
     if "temperatures" not in metrics.keys():
-        metrics["temperatures"] = Gauge(f'{metric_prefix}_temperatures', "Interface board temperatures", ["interface", "point"], unit="C", registry=registry)
+        metrics["temperatures"] = Gauge(f'{metric_prefix}_temperatures', "Interface board temperatures", ["side", "sector", "tile"], unit="C", registry=registry)
     for interface_board in temperatures.keys():
         for i, temp in enumerate(temperatures[interface_board]):
+            side, sector, tile = monitor.IB_to_tile[int(interface_board)][i]
+            
             if float(temp) < 0: # means interface board is off
                 continue
-            metrics["temperatures"].labels(interface=int(interface_board), point=int(i)).set(temp)
+            metrics["temperatures"].labels(side=side, sector=sector, tile=tile).set(temp)
 
     voltages = all_metrics["interface_voltages"]
     if "voltages" not in metrics.keys():
@@ -89,13 +91,13 @@ def sepd_information(verbose=False):
 
     currents = all_metrics["interface_currents"]
     if "currents" not in metrics.keys():
-        metrics["currents"] = Gauge(f'{metric_prefix}_currents', "SiPM Currents", ["sector", "tile"], unit="uA", registry=registry)
+        metrics["currents"] = Gauge(f'{metric_prefix}_currents', "SiPM Currents", ["side", "sector", "tile"], unit="uA", registry=registry)
     for interface_board in currents.keys():
         for i, current in enumerate(currents[interface_board]):
+            side, sector, tile = monitor.IB_to_tile[int(interface_board)][i]
             if float(current) > 2045: # means interface board is off
                 continue
-            sector = 2 * interface_board + (i // 32)
-            metrics["currents"].labels(sector=int(sector), tile = int(i % 32)).set(current)
+            metrics["currents"].labels(side=side, sector=sector, tile=tile).set(current)
 
     lv_voltages = all_metrics["lv_voltages"]
     if "lv_voltages" not in metrics.keys():
