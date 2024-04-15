@@ -67,6 +67,9 @@ def sepd_information(verbose=False):
     all_metrics = monitor.get_sEPD_metrics()
     logging.debug(json.dumps(all_metrics, sort_keys=True, indent=4))
 
+    """
+    INTERFACE BOARD METRICS
+    """
     temperatures = all_metrics["temperatures"]
     if "temperatures" not in metrics.keys():
         metrics["temperatures"] = Gauge(f'{metric_prefix}_temperatures', "Interface board temperatures", ["side", "sector", "tile"], unit="C", registry=registry)
@@ -81,14 +84,16 @@ def sepd_information(verbose=False):
 
     voltages = all_metrics["interface_voltages"]
     if "voltages" not in metrics.keys():
-        metrics["voltages"] = Gauge(f'{metric_prefix}_voltages', "Interface board voltages", ["interface", "rail"], unit="V", registry=registry)
+        metrics["voltages"] = Gauge(f'{metric_prefix}_voltages', "Interface board voltages", ["side", "interface", "rail"], unit="V", registry=registry)
     for interface_board in voltages.keys():
         logging.debug(f"Writing for interface board {interface_board}")
         if float(voltages[interface_board]["positive"]) > 12:
             continue # means interface board is off
-        metrics["voltages"].labels(interface=int(interface_board), rail="positive").set(voltages[interface_board]["positive"])
-        metrics["voltages"].labels(interface=int(interface_board), rail="negative").set(voltages[interface_board]["negative"])
-        metrics["voltages"].labels(interface=int(interface_board), rail="bias").set(voltages[interface_board]["bias"])
+        side = "north" if monitor.IB_to_tile[int(interface_board)][0][0] == 0 else "south"
+        interface_board = interface_board % 6
+        metrics["voltages"].labels(side=side, interface=int(interface_board), rail="positive").set(voltages[interface_board]["positive"])
+        metrics["voltages"].labels(side=side, interface=int(interface_board), rail="negative").set(voltages[interface_board]["negative"])
+        metrics["voltages"].labels(side=side, interface=int(interface_board), rail="bias").set(voltages[interface_board]["bias"])
 
     currents = all_metrics["interface_currents"]
     if "currents" not in metrics.keys():
@@ -101,6 +106,9 @@ def sepd_information(verbose=False):
             side = "north" if side == 0 else "south"
             metrics["currents"].labels(side=side, sector=sector, tile=tile).set(current)
 
+    """
+    LOW VOLTAGE CRATE METRICS
+    """
     lv_voltages = all_metrics["lv_voltages"]
     if "lv_voltages" not in metrics.keys():
         metrics["lv_voltages"] = Gauge(f"{metric_prefix}_lv_voltages", "LV crate voltages", ["board", "channel", "rail"], unit="V", registry=registry)
@@ -117,6 +125,10 @@ def sepd_information(verbose=False):
             metrics["lv_currents"].labels(board=int(interface_board), channel=int(channel), rail="positive").set(lv_currents[interface_board][channel]["positive"])
             metrics["lv_currents"].labels(board=int(interface_board), channel=int(channel), rail="negative").set(lv_currents[interface_board][channel]["negative"])
 
+
+    """
+    BIAS CRATE METRICS
+    """
     bias_info = all_metrics["bias_info"]
     bias_gauges = {"bias_setpoint" : {"name" : "Bias Setpoint", "unit" : "V"},
                    "bias_readback" : {"name" : "Bias Readback", "unit" : "V"},
