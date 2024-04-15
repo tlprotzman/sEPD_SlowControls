@@ -151,16 +151,14 @@ def get_bias_status():
 
 class sepdMonitor:
     def __init__(self, config_file=None):
+        self.IB_to_tile = None
+        self.tile_to_IB = None
         if config_file is None:
             self.configs = self.load_configs()
         else:
             self.configs = self.load_configs(config_file)
+        self.init_mapping()
 
-        pass
-
-    def load_configs(self, file="monitoring_config.json"):
-        with open(file, "r") as f:
-            return json.load(f)
 
     def init_mapping(self):
         if (self.configs["mapping"] is None):
@@ -182,7 +180,7 @@ class sepdMonitor:
         for IB in range(12):
             self.IB_to_tile.append([])
             for channel in range(64):
-                self.IB_to_tile[i].append(-1)
+                self.IB_to_tile[IB].append(-1)
         
         self.tile_to_IB = []
         for side in range(2):
@@ -195,6 +193,10 @@ class sepdMonitor:
         for side, sector, tile, interface_board, channel in self.mapping:
             self.IB_to_tile[interface_board][channel] = (side, sector, tile)
             self.tile_to_IB[side][sector][tile] = (interface_board, channel)
+
+    def load_configs(self, file="monitoring_config.json"):
+        with open(file, "r") as f:
+            return json.load(f)
 
     def get_sEPD_metrics(self):
         timeout = 3

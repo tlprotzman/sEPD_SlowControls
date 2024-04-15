@@ -76,6 +76,7 @@ def sepd_information(verbose=False):
             
             if float(temp) < 0: # means interface board is off
                 continue
+            side = "north" if side == 0 else "south"
             metrics["temperatures"].labels(side=side, sector=sector, tile=tile).set(temp)
 
     voltages = all_metrics["interface_voltages"]
@@ -97,6 +98,7 @@ def sepd_information(verbose=False):
             side, sector, tile = monitor.IB_to_tile[int(interface_board)][i]
             if float(current) > 2045: # means interface board is off
                 continue
+            side = "north" if side == 0 else "south"
             metrics["currents"].labels(side=side, sector=sector, tile=tile).set(current)
 
     lv_voltages = all_metrics["lv_voltages"]
