@@ -61,6 +61,24 @@ def get_temperatures(crate, side):
         temperatures[board + offset] = response[:-1].split()
     return temperatures
 
+@timeout(default_timeout)
+def get_gain_mode(crate, side):
+    gain_modes = {}
+    offset = 0
+    if side == "south":
+        offset = 6
+    for board in range(6):
+        command = "$A{}".format(board).encode("ascii") + b"\n\r"
+        logging.debug("sending {} to controller".format(command))
+        crate.write(command)
+        response = crate.read_until(b'>').decode()
+        logging.debug("received {}".format(response))
+        if 'Norm' in response
+            gain_modes[board + offset] = 'Normal'
+        else:
+            gain_modes[board + offset] = 'High'
+    return gain_modes
+
     
 @timeout(default_timeout)
 def get_interface_voltages(crate, side):
@@ -203,12 +221,14 @@ class sepdMonitor:
         temperatures = {}
         interface_voltages = {}
         interface_currents = {}
+        gain = {}
         for side in ("north", "south"):
             try:
                 with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
                     temperatures.update(get_temperatures(crate, side))
                     interface_voltages.update(get_interface_voltages(crate, side))
                     interface_currents.update(get_interface_current(crate, side))
+                    gain.update(get_gain_mode(crate, side))
             except socket.timeout:
                 logging.error("Could not connect to controller crate")
 
@@ -234,6 +254,7 @@ class sepdMonitor:
         bias = get_bias_status()
 
         response = {"temperatures" : temperatures,
+                    "gain_modes" : gain,
                     "interface_voltages" : interface_voltages,
                     "interface_currents" : interface_currents,
                     "lv_voltages" : lv_voltages,
