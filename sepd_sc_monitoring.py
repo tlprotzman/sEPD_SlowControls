@@ -69,8 +69,8 @@ def get_gain_mode(crate, side):
     if side == "south":
         offset = 6
     for board in range(6):
-        gain_modes[board + offset] = 'Normal'
-        continue
+        # gain_modes[board + offset] = 'Normal'
+        # continue
         command = "$A{}".format(board).encode("ascii") + b"\n\r"
         logging.debug("sending {} to controller".format(command))
         crate.write(command)
@@ -179,8 +179,17 @@ class sepdMonitor:
         else:
             self.configs = self.load_configs(config_file)
         self.init_mapping()
+
         self.last_gain_state = {}
-        self.ticks_since_last_gain_update = 8
+        self.last_gain_update = time.time() - (20 * 60)
+        self.read_gain = False
+        self.temperatures = {}
+        self.interface_voltages = {}
+        self.interface_currents = {}
+        self.lv_voltages = {}
+        self.lv_currents = {}
+        self.bias = {}
+
 
 
     def init_mapping(self):
@@ -223,56 +232,73 @@ class sepdMonitor:
 
     def get_sEPD_metrics(self):
         timeout = 3
-        temperatures = {}
-        interface_voltages = {}
-        interface_currents = {}
-        update_gain = self.ticks_since_last_gain_update >=8
-        if update_gain:
-            logging.info("updating gain...")
-            self.last_gain_state = {}
-            self.ticks_since_last_gain_update = 0
-        else:
-            self.ticks_since_last_gain_update += 1
 
-        for side in ("north", "south"):
-            try:
-                with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
-                    temperatures.update(get_temperatures(crate, side))
-                    interface_voltages.update(get_interface_voltages(crate, side))
-                    interface_currents.update(get_interface_current(crate, side))
-                    if update_gain:
-                        self.last_gain_state.update(get_gain_mode(crate, side))
-            except socket.timeout:
-                logging.error("Could not connect to controller crate")
-
-        lv_voltages = {}
-        lv_currents = {}
+        # Updates from the low voltage crate
+        self.lv_voltages = {}
+        self.lv_currents = {}
         success = False
         tries = 0
         while not success and tries < 1:
             try:
                 with telnetlib.Telnet(self.configs["lv_host"], self.configs["lv_port"], 0.5) as crate:
-                    lv_voltages.update(get_lv_voltages(crate))
-                    lv_currents.update(get_lv_currents(crate))
+                    self.lv_voltages.update(get_lv_voltages(crate))
+                    self.lv_currents.update(get_lv_currents(crate))
                     success = True
             except socket.timeout:
                 tries += 1
                 logging.error("Could not connect to lv crate, try {}".format(tries))
         if not success:
             logging.error("Faking lv crate data")
-            lv_voltages.update(get_lv_voltages(crate, fake=True))
-            lv_currents.update(get_lv_currents(crate, fake=True))
+            self.lv_voltages.update(get_lv_voltages(crate, fake=True))
+            self.lv_currents.update(get_lv_currents(crate, fake=True))
     
-        bias = {}
-        bias = get_bias_status()
+        # Updates from the bias crate
+        self.bias = {}
+        self.bias = get_bias_status()
 
-        response = {"temperatures" : temperatures,
+        # Updates from the controller crates
+        if self.read_gain:
+            logging.debug("read gain, skipping updates...")
+            if time.time() - self.last_gain_update >= 11 * 60:
+                logging.debug("Resetting gain update")
+                self.last_gain_update = time.time()
+                self.read_gain = False
+            response = {"temperatures" : self.temperatures,
+            "gain_modes" : self.last_gain_state,
+            "interface_voltages" : self.interface_voltages,
+            "interface_currents" : self.interface_currents,
+            "lv_voltages" : self.lv_voltages,
+            "lv_currents" : self.lv_currents,
+            "bias_info" : self.bias}
+            return response
+
+        self.temperatures = {}
+        self.interface_voltages = {}
+        self.interface_currents = {}
+
+        self.read_gain = time.time() - self.last_gain_update >= 10 * 60
+        logging.debug(f"Reading gain: {self.read_gain}")
+
+        for side in ("north", "south"):
+            try:
+                with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
+                    self.temperatures.update(get_temperatures(crate, side))
+                    self.interface_voltages.update(get_interface_voltages(crate, side))
+                    self.interface_currents.update(get_interface_current(crate, side))
+                    if self.read_gain:
+                        self.last_gain_state.update(get_gain_mode(crate, side))
+            except socket.timeout:
+                logging.error("Could not connect to controller crate")
+
+        
+
+        response = {"temperatures" : self.temperatures,
                     "gain_modes" : self.last_gain_state,
-                    "interface_voltages" : interface_voltages,
-                    "interface_currents" : interface_currents,
-                    "lv_voltages" : lv_voltages,
-                    "lv_currents" : lv_currents,
-                    "bias_info" : bias}
+                    "interface_voltages" : self.interface_voltages,
+                    "interface_currents" : self.interface_currents,
+                    "lv_voltages" : self.lv_voltages,
+                    "lv_currents" : self.lv_currents,
+                    "bias_info" : self.bias}
         return response
         
             
