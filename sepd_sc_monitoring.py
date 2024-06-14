@@ -11,6 +11,7 @@ import functools
 import multiprocessing
 import subprocess
 import csv
+import time
 
 multiprocessing.set_start_method('fork')
 
@@ -61,19 +62,21 @@ def get_temperatures(crate, side):
         temperatures[board + offset] = response[:-1].split()
     return temperatures
 
-@timeout(default_timeout)
+#@timeout(default_timeout)
 def get_gain_mode(crate, side):
     gain_modes = {}
     offset = 0
     if side == "south":
         offset = 6
     for board in range(6):
+        gain_modes[board + offset] = 'Normal'
+        continue
         command = "$A{}".format(board).encode("ascii") + b"\n\r"
         logging.debug("sending {} to controller".format(command))
         crate.write(command)
         response = crate.read_until(b'>').decode()
         logging.debug("received {}".format(response))
-        if 'Norm' in response
+        if 'Norm' in response:
             gain_modes[board + offset] = 'Normal'
         else:
             gain_modes[board + offset] = 'High'
@@ -176,6 +179,8 @@ class sepdMonitor:
         else:
             self.configs = self.load_configs(config_file)
         self.init_mapping()
+        self.last_gain_state = {}
+        self.ticks_since_last_gain_update = 8
 
 
     def init_mapping(self):
@@ -221,14 +226,22 @@ class sepdMonitor:
         temperatures = {}
         interface_voltages = {}
         interface_currents = {}
-        gain = {}
+        update_gain = self.ticks_since_last_gain_update >=8
+        if update_gain:
+            logging.info("updating gain...")
+            self.last_gain_state = {}
+            self.ticks_since_last_gain_update = 0
+        else:
+            self.ticks_since_last_gain_update += 1
+
         for side in ("north", "south"):
             try:
                 with telnetlib.Telnet(self.configs[f"{side}_controller_host"], self.configs[f"{side}_controller_port"], timeout) as crate:
                     temperatures.update(get_temperatures(crate, side))
                     interface_voltages.update(get_interface_voltages(crate, side))
                     interface_currents.update(get_interface_current(crate, side))
-                    gain.update(get_gain_mode(crate, side))
+                    if update_gain:
+                        self.last_gain_state.update(get_gain_mode(crate, side))
             except socket.timeout:
                 logging.error("Could not connect to controller crate")
 
@@ -254,7 +267,7 @@ class sepdMonitor:
         bias = get_bias_status()
 
         response = {"temperatures" : temperatures,
-                    "gain_modes" : gain,
+                    "gain_modes" : self.last_gain_state,
                     "interface_voltages" : interface_voltages,
                     "interface_currents" : interface_currents,
                     "lv_voltages" : lv_voltages,

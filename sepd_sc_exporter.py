@@ -87,8 +87,9 @@ def sepd_information(verbose=False):
         metrics["gain_modes"] = Gauge(f'{metric_prefix}_gain_modes', "Interface board gain modes", ["side", "interface"], registry=registry)
     for interface_board in gain_modes.keys():
         side = "north" if monitor.IB_to_tile[int(interface_board)][0][0] == 0 else "south"
+        gain_int = 0 if gain_modes[interface_board] == 'Normal' else 1
         interface_board = interface_board % 6
-        metrics["gain_modes"].labels(side=side, interface=int(interface_board)).set(gain_modes[interface_board])
+        metrics["gain_modes"].labels(side=side, interface=int(interface_board)).set(gain_int)
 
     voltages = all_metrics["interface_voltages"]
     if "voltages" not in metrics.keys():
